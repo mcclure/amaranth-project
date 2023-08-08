@@ -18,10 +18,12 @@ class DopplerPlatform(LatticeICE40Platform):
                  Attrs(IO_STANDARD="SB_LVCMOS")),
 
         # LED matrix anodes and cathodes
-        Resource("aled", 0, Pins("26 27 28 31", dir="oe"),
+        Resource("aled", 0, Pins("26 27 28 31", dir="o"),
                  Attrs(IO_STANDARD="SB_LVCMOS")),
-        Resource("kled", 0, Pins("42 43 44 45", dir="oe"),
-                 Attrs(IO_STANDARD="SB_LVCMOS")),
+        Resource("kled", 0, Pins("42", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
+        Resource("kled", 1, Pins("43", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
+        Resource("kled", 2, Pins("44", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
+        Resource("kled", 3, Pins("45", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
 
         # SAMD51 SERCOM5
         # CS:   SERCOM 1.3/3.3, Arduino pin 11

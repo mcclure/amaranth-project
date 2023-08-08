@@ -24,13 +24,40 @@ class Top(am.Elaboratable):
         m = am.Module()
 
         button = platform.request("button", 0)
-        kled = platform.request("kled", 0)
+        kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)
-        m.submodules.counter = counter = Counter(24)
-        m.d.comb += kled.o.eq(0b0000), kled.oe.eq(0b1111)
-        m.d.comb += aled.o.eq(0b0000), aled.oe.eq(0b1111)
-        with m.If(button.i):
-            m.d.comb += aled.o[0].eq(counter.overflow)
+
+        selected_led = am.Signal(range(16))
+        assert len(selected_led) == 4
+
+        # Source: https://github.com/dadamachines/doppler-FPGA-firmware/blob/a3d57bb/doppler_simple_io/doppler_simple_io.v#L153-L168
+        # Anode looks like (inverted) column select:
+        # * 1110 for LEDs 0, 4,  8, 12
+        # * 1101 for LEDs 1, 5,  9, 13
+        # * 1011 for LEDs 2, 6, 10, 14
+        # * 0111 for LEDs 3, 7, 11, 15
+        m.d.comb += [
+            aled.o[0].eq(~(selected_led[:2] == 0b00)),
+            aled.o[1].eq(~(selected_led[:2] == 0b01)),
+            aled.o[2].eq(~(selected_led[:2] == 0b10)),
+            aled.o[3].eq(~(selected_led[:2] == 0b11)),
+        ]
+
+        # Cathode looks like row select, but to turn off, we put it in high
+        # impedance, rather than grounding it:
+        m.d.comb += [
+            *[kled.o.eq(1) for kled in kleds],
+            kleds[0].oe.eq(selected_led[2:] == 0b00),
+            kleds[1].oe.eq(selected_led[2:] == 0b01),
+            kleds[2].oe.eq(selected_led[2:] == 0b10),
+            kleds[3].oe.eq(selected_led[2:] == 0b11),
+        ]
+
+        # This button isn't debounced, so it'll probably skip a whole lot every time you press it.
+        button_last = am.Signal()
+        m.d.sync += button_last.eq(button.i)
+        with m.If(~button.i & button_last):
+            m.d.sync += selected_led.eq(selected_led + 1)
 
         return m
 
