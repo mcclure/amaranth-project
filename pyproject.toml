@@ -1,5 +1,5 @@
 [project]
-name = "amaranth-template-fpga"
+name = "counter"
 version = "0.0.0"
 description = "Template for a generic FPGA project using Amaranth"
 
