@@ -64,11 +64,14 @@ class Top(am.Elaboratable):
         # * 1101 for LEDs 1, 5,  9, 13
         # * 1011 for LEDs 2, 6, 10, 14
         # * 0111 for LEDs 3, 7, 11, 15
+
         for i in range(4):
             counter_match = self.may_light
+            if i != 3: # Highlight final row
+                counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
             counter_match = counter_match & (self.current_led.count[self._aled_bits] == i)
             m.d.comb += \
-                aled.o[i].eq(counter_match)
+                aled.o[i].eq(~counter_match)
 
         # Cathode looks like row select, but to turn off, we put it in high
         # impedance, rather than grounding it:
@@ -76,8 +79,6 @@ class Top(am.Elaboratable):
         m.d.comb += [kled.o.eq(1) for kled in kleds]
         for i in range(4):
             counter_match = self.may_light
-            if i != 1:
-                counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
             counter_match = counter_match & (self.current_led.count[self._kled_bits] == i)
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
@@ -92,6 +93,6 @@ class Top(am.Elaboratable):
 
 
 if __name__ == "__main__":
-    top = Top(2,3)
+    top = Top(0,2)
     plat = DopplerPlatform()
     plat.build(top)
