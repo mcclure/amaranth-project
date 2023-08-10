@@ -23,8 +23,8 @@ class Counter(am.Elaboratable):
 
 
 class Top(am.Elaboratable):
-    def __init__(self, attenuate_power, highlight_bits):
-        assert highlight_bits > 0
+    def __init__(self, attenuate_power, highlight_power):
+        assert highlight_power > 0
 
         # State
         # 0-1: Must be 0 to display;
@@ -32,12 +32,13 @@ class Top(am.Elaboratable):
         # next 2 bits: row
         # next 2 bits: column
         # last b
-        self.current_led = Counter(attenuate_power+5)
+        self.current_led = Counter(4+attenuate_power+highlight_power)
         self._led_attenuate = attenuate_power > 0
-        self._led_attenuate_bits = range(0, attenuate_power)
-        self._aled_bits = range(attenuate_power, attenuate_power+2)
-        self._kled_bits = range(attenuate_power+2, attenuate_power+4)
-        self._highlight_bits = range(attenuate_power+4, attenuate_power+4+highlight_bits) # active 0
+        self._aled_bits = slice(0, 2)
+        self._kled_bits = slice(2, 4)
+        if self._led_attenuate:
+            self._led_attenuate_bits = slice(4, 4+attenuate_power)
+        self._highlight_bits = slice(4+attenuate_power, 4+attenuate_power+highlight_power) # active 0
 
         self.may_light = am.Signal(1)
 
@@ -52,9 +53,9 @@ class Top(am.Elaboratable):
         aled = platform.request("aled", 0)
 
         # Logic
-        self.may_light.eq(
+        m.d.comb += self.may_light.eq(
             self.current_led.count[self._led_attenuate_bits] == 0
-                if self._led_attenuate else m.C(1)
+                if self._led_attenuate else am.C(1)
         )
 
         # Source: https://github.com/dadamachines/doppler-FPGA-firmware/blob/a3d57bb/doppler_simple_io/doppler_simple_io.v#L153-L168
@@ -64,17 +65,20 @@ class Top(am.Elaboratable):
         # * 1011 for LEDs 2, 6, 10, 14
         # * 0111 for LEDs 3, 7, 11, 15
         for i in range(4):
+            counter_match = self.may_light
+            counter_match = counter_match & (self.current_led.count[self._aled_bits] == i)
             m.d.comb += \
-                aled.o[0].eq(self.current_led.count[self._aled_bits] == i)
+                aled.o[i].eq(counter_match)
 
         # Cathode looks like row select, but to turn off, we put it in high
         # impedance, rather than grounding it:
 
         m.d.comb += [kled.o.eq(1) for kled in kleds]
         for i in range(4):
-            counter_match = (self.current_led.count[self._kled_bits] == i)
-            if i != 0:
-                counter_match = counter_match & (self.current_led.count[self._highlight_bits]) # Slowest-changing bit(s)
+            counter_match = self.may_light
+            if i != 1:
+                counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
+            counter_match = counter_match & (self.current_led.count[self._kled_bits] == i)
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
 
@@ -88,6 +92,6 @@ class Top(am.Elaboratable):
 
 
 if __name__ == "__main__":
-    top = Top(2,1)
+    top = Top(2,3)
     plat = DopplerPlatform()
     plat.build(top)
