@@ -12,7 +12,7 @@ class DopplerPlatform(LatticeICE40Platform):
     hfosc_div   = 0
     resources   = [
         # PCB button1, button2
-        Resource("button", 0, Pins("2 3", dir="i"),
+        Resource("button", 0, Pins("2", dir="i"),
                  Attrs(IO_STANDARD="SB_LVCMOS")),
         Resource("button", 1, Pins("3", dir="i"),
                  Attrs(IO_STANDARD="SB_LVCMOS")),
