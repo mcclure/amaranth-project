@@ -26,9 +26,12 @@ class Counter(am.Elaboratable):
         single_shot_condition = self.count > 0 if self._single_shot else am.C(1)
         observe_condition = self.observe if self.observe is not None else am.C(0)
 
-        with m.If(observe_condition):
-            m.d.sync += self.count.eq(self._observe_reset)
-        with m.Elif(single_shot_condition):
+        #with m.If(observe_condition):
+        #    m.d.sync += self.count.eq(self._observe_reset)
+        #with m.Elif(single_shot_condition):
+        with m.If(am.C(0)):
+            m.d.sync += self.count.eq(0)
+        with m.Elif(am.C(1)):
             m.d.sync += self.count.eq(self.count + 1)
 
         # Output overflow on cycles where the count is 0
