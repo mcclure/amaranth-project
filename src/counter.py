@@ -28,7 +28,7 @@ class Counter(am.Elaboratable):
 
         with m.If(observe_condition):
             m.d.sync += self.count.eq(self._observe_reset)
-        with m.If((~observe_condition) & single_shot_condition): # FIXME elif would be better
+        with m.If(~observe_condition & single_shot_condition): # FIXME elif would be better
             m.d.sync += self.count.eq(self.count + 1)
 
         # Output overflow on cycles where the count is 0
@@ -98,7 +98,7 @@ class Top(am.Elaboratable):
         )
 
         m.d.comb += self.may_scroll.eq(
-            (~button_ffwd_watcher.overflow) | (~button_step_watcher.overflow)
+            ~button_ffwd_watcher.overflow | ~button_step_watcher.overflow
         )
 
         # Source: https://github.com/dadamachines/doppler-FPGA-firmware/blob/a3d57bb/doppler_simple_io/doppler_simple_io.v#L153-L168
@@ -119,7 +119,7 @@ class Top(am.Elaboratable):
 
             grid_match = am.C(0)
             for c in range(4): # Iterate cols
-                grid_match = grid_match | (col == c & self.grid[i*4 + c])
+                grid_match = grid_match | ((col == c) & self.grid[i*4 + c])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
@@ -135,7 +135,7 @@ class Top(am.Elaboratable):
 
             grid_match = am.C(0)
             for c in range(4): # Iterate rows
-                grid_match = grid_match | (row == c & self.grid[c*4 + i])
+                grid_match = grid_match | ((row == c) & self.grid[c*4 + i])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
@@ -159,6 +159,6 @@ class Top(am.Elaboratable):
 
 
 if __name__ == "__main__":
-    top = Top(0,2)
+    top = Top(0,1)
     plat = DopplerPlatform()
     plat.build(top) # , debug_verilog=True
