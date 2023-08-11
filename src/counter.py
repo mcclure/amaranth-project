@@ -44,8 +44,10 @@ def button_watcher(observe):
     return Counter(8, True, True, observe, 1)
 
 class Top(am.Elaboratable):
-    def __init__(self, attenuate_power, highlight_power):
+    def __init__(self, attenuate_power, highlight_power, platform_override = None):
         assert highlight_power > 0
+
+        self.platform_override = platform_override # I hate that this is necessary
 
         # State
         # 0-1: Must be 0 to display;
@@ -69,6 +71,9 @@ class Top(am.Elaboratable):
 
     def elaborate(self, platform):
         m = am.Module()
+
+        if platform is None:
+            platform = self.platform_override
 
         m.submodules.current_led = self.current_led
 
@@ -154,4 +159,4 @@ class Top(am.Elaboratable):
 if __name__ == "__main__":
     top = Top(0,2)
     plat = DopplerPlatform()
-    plat.build(top)
+    plat.build(top, debug_verilog=True)
