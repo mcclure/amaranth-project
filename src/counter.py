@@ -36,12 +36,9 @@ class Counter(am.Elaboratable):
             m.d.comb += self.overflow.eq(self.count == 0)
         return m
 
-# Debounce. .overflow field will be 0 iff button pressed in last 2^8 cycles
-def button_watcher(observe):
-    return Counter(8, True, True, observe, 1)
 
 class Top(am.Elaboratable):
-    def __init__(self, attenuate_power, highlight_power):
+    def __init__(self, attenuate_power, highlight_power, button_watcher_power=8, debug=False):
         assert highlight_power > 0
 
         # State
@@ -64,6 +61,16 @@ class Top(am.Elaboratable):
         self.may_light = am.Signal(1)
         self.may_scroll = am.Signal(1)
 
+        self._button_watcher_power = button_watcher_power
+
+        self._debug = debug
+        if debug:
+            self.debug_button_ffwd_watcher_overflow = am.Signal(1)
+
+    # Debounce. .overflow field will be 0 iff button pressed in last 2^8 cycles
+    def button_watcher(self, observe):
+        return Counter(self._button_watcher_power, True, True, observe, 1)
+
     def elaborate(self, platform):
         m = am.Module()
 
@@ -71,12 +78,15 @@ class Top(am.Elaboratable):
 
         # Interface
         button_ffwd = platform.request("button", 0)
-        button_ffwd_watcher = button_watcher(button_ffwd)
+        button_ffwd_watcher = self.button_watcher(button_ffwd)
         m.submodules.button_ffwd_watcher = button_ffwd_watcher
 
         button_step = platform.request("button", 1)
-        button_step_watcher = button_watcher(button_step)
+        button_step_watcher = self.button_watcher(button_step)
         m.submodules.button_step_watcher = button_step_watcher
+
+        if self._debug:
+            m.d.comb += self.debug_button_ffwd_watcher_overflow.eq(button_ffwd_watcher.overflow)
 
         kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)
@@ -151,4 +161,4 @@ class Top(am.Elaboratable):
 if __name__ == "__main__":
     top = Top(0,2)
     plat = DopplerPlatform()
-    plat.build(top)
+    plat.build(top) # , debug_verilog=True
