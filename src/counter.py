@@ -28,7 +28,7 @@ class Counter(am.Elaboratable):
 
         with m.If(observe_condition):
             m.d.sync += self.count.eq(self._observe_reset)
-        with m.Elif(single_shot_condition):
+        with m.If((~observe_condition) & single_shot_condition): # FIXME elif would be better
             m.d.sync += self.count.eq(self.count + 1)
 
         # Output overflow on cycles where the count is 0
@@ -107,9 +107,9 @@ class Top(am.Elaboratable):
                 counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
             counter_match = counter_match & (row == i)
 
-            grid_match = am.C(1)
-            #for c in range(4): # Iterate cols
-            #    grid_match = grid_match | (col == c & self.grid[i*4 + c])
+            grid_match = am.C(0)
+            for c in range(4): # Iterate cols
+                grid_match = grid_match | (col == c & self.grid[i*4 + c])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
@@ -123,9 +123,9 @@ class Top(am.Elaboratable):
             counter_match = self.may_light
             counter_match = counter_match & (col == i)
 
-            grid_match = am.C(1)
-            #for c in range(4): # Iterate rows
-            #    grid_match = grid_match | (row == c & self.grid[c*4 + i])
+            grid_match = am.C(0)
+            for c in range(4): # Iterate rows
+                grid_match = grid_match | (row == c & self.grid[c*4 + i])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
