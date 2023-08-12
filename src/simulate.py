@@ -3,6 +3,9 @@ from amaranth.sim import Simulator
 from counter import Top
 from types import SimpleNamespace
 
+hold_power = 2 # Instead of None use 0
+hold_factor = 1 << hold_power
+
 # Mock platform
 class SimPlatform():
     def __init__(self):
@@ -20,15 +23,15 @@ class SimPlatform():
         return am.Signal(1)
 
 platform = SimPlatform()
-dut = Top(0,1, button_watcher_power=4, debug=True)
+dut = Top(hold_power, button_watcher_power=4, debug=True)
 
 def bench():
-    for _ in range(64):
+    for _ in range(64*hold_factor):
         yield
-    for i in range(64):
+    for i in range(64*hold_factor):
         yield platform.button0.eq(i%2 == 0)
         yield
-    for _ in range(128):
+    for _ in range(128*hold_factor):
         yield
 
 sim = Simulator(am.Fragment.get(dut, platform))

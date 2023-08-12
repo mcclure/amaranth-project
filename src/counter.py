@@ -1,15 +1,16 @@
 import amaranth as am
 from doppler import DopplerPlatform
 
+SCREEN_TEST = True
 
 class Counter(am.Elaboratable):
-    def __init__(self, n, need_overflow=False, single_shot=False, observe=None, observe_reset=0):
+    def __init__(self, n, overflow_at_value=None, single_shot=False, observe=None, observe_reset_value=0):
         # Store an n-bit register for the count value
         self.count = am.Signal(n)
 
         # Output a single-bit output signal
-        self._has_overflow = need_overflow
-        if need_overflow:
+        self._overflow_at_value = overflow_at_value
+        if overflow_at_value is not None:
             self.overflow = am.Signal()
 
         # Must reset to 1 to do anything -- use with observe
@@ -17,59 +18,84 @@ class Counter(am.Elaboratable):
 
         # Observe signal going high
         self.observe = observe
-        self._observe_reset = observe_reset
+        self._observe_reset_value = observe_reset_value
 
     def elaborate(self, platform):
         m = am.Module()
         # Count up each clock cycle
 
-        single_shot_condition = self.count > 0 if self._single_shot else am.C(1)
+        single_shot_condition = self.count > 0 if self._single_shot else am.C(1) # FIXME use overflow_at_value?
         observe_condition = self.observe if self.observe is not None else am.C(0)
 
         with m.If(observe_condition):
-            m.d.sync += self.count.eq(self._observe_reset)
+            m.d.sync += self.count.eq(self._observe_reset_value)
         with m.If(~observe_condition & single_shot_condition): # FIXME elif would be better
             m.d.sync += self.count.eq(self.count + 1)
 
         # Output overflow on cycles where the count is 0
-        if self._has_overflow:
-            m.d.comb += self.overflow.eq(self.count == 0)
+        if self._overflow_at_value is not None:
+            m.d.comb += self.overflow.eq(self.count == self._overflow_at_value)
         return m
 
+class Edger(am.Elaboratable):
+    def __init__(self, observe): # FIXME variable for initial fire?
+        # Will output high when this hits rising edge
+        self.observe = observe
+        self.last_value = am.Signal()
+        self.fire = am.Signal()
+
+    def elaborate(self, platform):
+        m = am.Module()
+        m.d.sync += self.last_value.eq(self.observe)
+        m.d.comb += self.fire.eq(self.observe and (~self.last_value))
 
 class Top(am.Elaboratable):
-    def __init__(self, attenuate_power, highlight_power, button_watcher_power=8, debug=False):
-        assert highlight_power > 0
-
+    def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=8, debug=False):
         # State
-        # 0-1: Must be 0 to display;
-        # next bit: highlight
+        # button_watcher_power bits of delay
         # next 2 bits: row
         # next 2 bits: column
-        # last b
-        self.current_led = Counter(4+attenuate_power+highlight_power)
-        self._led_attenuate = attenuate_power > 0
-        self._aled_bits = slice(0, 2)
-        self._kled_bits = slice(2, 4)
-        if self._led_attenuate:
-            self._led_attenuate_bits = slice(4, 4+attenuate_power)
-        self._highlight_bits = slice(4+attenuate_power, 4+attenuate_power+highlight_power) # active 0
+        # Start
+        bit = 0
+        
+        field = led_hold_power
+        self._led_hold_bits = slice(bit, bit+field) if field > 0 else None
+        bit += field
+
+        field = 2
+        self._aled_bits = slice(bit, bit+field)
+        bit += field
+
+        self._kled_bits = slice(bit, bit+field)
+        bit += field
+
+        self.current_led = Counter(bit)
+        # End
+        
+        self._led_full_intensity = led_full_intensity # No full => always full
+        self._led_dim_intensity = led_dim_intensity or led_full_intensity # No dim => follow full behavior
 
         self.grid = am.Signal(16)
 
         # Helpers
-        self.may_light = am.Signal(1)
-        self.may_scroll = am.Signal(1)
+        self.may_light_full = am.Signal()
+        self.may_light_dim = am.Signal()
+        self.may_light_current = am.Signal()
+        self.may_scroll = am.Signal()
 
         self._button_watcher_power = button_watcher_power
+
+        self.row = am.Signal(2)
+        self.col = am.Signal(2)
 
         self._debug = debug
         if debug:
             self.debug_button_ffwd_watcher_overflow = am.Signal(1)
 
     # Debounce. .overflow field will be 0 iff button pressed in last 2^8 cycles
-    def button_watcher(self, observe):
-        return Counter(self._button_watcher_power, True, True, observe, 1)
+    def button_watcher(self, observe=None):
+        return Counter(self._button_watcher_power,
+            overflow_at_value=0, single_shot=True, observe=observe, observe_reset_value=1)
 
     def elaborate(self, platform):
         m = am.Module()
@@ -92,15 +118,39 @@ class Top(am.Elaboratable):
         aled = platform.request("aled", 0)
 
         # Logic
-        m.d.comb += self.may_light.eq(
-            self.current_led.count[self._led_attenuate_bits] == 0
-                if self._led_attenuate else am.C(1)
-        )
+        m.d.comb += [
+            self.row.eq(self.current_led.count[self._aled_bits]),
+            self.col.eq(self.current_led.count[self._kled_bits])
+        ]
+
+        any_hold = self._led_hold_bits is not None
+        any_intensity_full = any_hold and self._led_full_intensity is not None
+        any_intensity_dim = any_hold and self._led_dim_intensity is not None
+        m.d.comb += [
+            self.may_light_full.eq(
+                self.current_led.count[self._led_hold_bits] < self._led_full_intensity
+                    if any_intensity_full
+                    else am.C(1)
+            ),
+
+            self.may_light_dim.eq(
+                self.current_led.count[self._led_hold_bits] < self._led_dim_intensity
+                    if any_intensity_dim
+                    else am.C(1)
+            ),
+
+            self.may_light_current.eq(
+                am.Mux(self.row == 3, self.may_light_full, self.may_light_dim)
+                    if any_intensity_full or any_intensity_dim
+                    else am.C(1)
+            )
+        ]
 
         m.d.comb += self.may_scroll.eq(
             ~button_ffwd_watcher.overflow | ~button_step_watcher.overflow
         )
 
+        # LED operation
         # Source: https://github.com/dadamachines/doppler-FPGA-firmware/blob/a3d57bb/doppler_simple_io/doppler_simple_io.v#L153-L168
         # Anode looks like (inverted) column select:
         # * 1110 for LEDs 0, 4,  8, 12
@@ -108,18 +158,14 @@ class Top(am.Elaboratable):
         # * 1011 for LEDs 2, 6, 10, 14
         # * 0111 for LEDs 3, 7, 11, 15
 
-        row = self.current_led.count[self._aled_bits]
-        col = self.current_led.count[self._kled_bits]
-
         for i in range(4): # Iterate rows
-            counter_match = self.may_light
-            if i != 3: # Highlight final row
-                counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
-            counter_match = counter_match & (row == i)
+            counter_match = self.may_light_current
+
+            counter_match = counter_match & (self.row == i)
 
             grid_match = am.C(0)
             for c in range(4): # Iterate cols
-                grid_match = grid_match | ((col == c) & self.grid[i*4 + c])
+                grid_match = grid_match | ((self.col == c) & self.grid[i*4 + c])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
@@ -130,24 +176,29 @@ class Top(am.Elaboratable):
 
         m.d.comb += [kled.o.eq(1) for kled in kleds]
         for i in range(4): # Iterate columns
-            counter_match = self.may_light
-            counter_match = counter_match & (col == i)
+            counter_match = self.may_light_current
+
+            counter_match = counter_match & (self.col == i)
 
             grid_match = am.C(0)
             for c in range(4): # Iterate rows
-                grid_match = grid_match | ((row == c) & self.grid[c*4 + i])
+                grid_match = grid_match | ((self.row == c) & self.grid[c*4 + i])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
 
-        with m.If(~button_ffwd_watcher.overflow):
-            m.d.sync += \
-                self.grid[12:16].eq(self.grid[12:16] + 1)
+        if not SCREEN_TEST:
+            with m.If(~button_ffwd_watcher.overflow):
+                m.d.sync += \
+                    self.grid[12:16].eq(self.grid[12:16] + 1)
 
-        with m.If(self.may_scroll):
-            m.d.sync += \
-                self.grid[0:12].eq(self.grid[4:16])
+            with m.If(self.may_scroll):
+                m.d.sync += \
+                    self.grid[0:12].eq(self.grid[4:16])
+        else: # SCREEN_TEST
+            m.d.comb += \
+                self.grid.eq(am.C(0b1010010100111100, shape=am.unsigned(16)))
 
         # This button isn't debounced, so it'll probably skip a whole lot every time you press it.
 #        button_last = am.Signal()
@@ -159,6 +210,6 @@ class Top(am.Elaboratable):
 
 
 if __name__ == "__main__":
-    top = Top(0,1)
+    top = Top(5, led_full_intensity=24, led_dim_intensity=4)
     plat = DopplerPlatform()
     plat.build(top) # , debug_verilog=True
