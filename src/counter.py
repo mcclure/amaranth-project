@@ -56,7 +56,7 @@ class Edger(am.Elaboratable):
         return m
 
 class Top(am.Elaboratable):
-    def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=5, ffwd_animate_power=8, debug=False):
+    def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=5, ffwd_animate_power=21, debug=False):
         # State
         # button_watcher_power bits of delay
         # next 2 bits: row
@@ -101,7 +101,6 @@ class Top(am.Elaboratable):
 
          # Only used if not SCREEN_TEST 
         self.button_step_edge = Edger()
-        ffwd_animate_max = (1<<ffwd_animate_power-1)
         self.button_ffwd_down = Counter(ffwd_animate_power, overflow_at_value=1, observe_reset_value=0)
 
         self._debug = debug
@@ -117,13 +116,13 @@ class Top(am.Elaboratable):
         m.submodules.current_led = self.current_led
 
         # Interface
-        button_ffwd = platform.request("button", 0)
-        m.d.comb += self.button_ffwd_watcher.observe_input.eq(button_ffwd)
-        m.submodules.button_ffwd_watcher = self.button_ffwd_watcher
-
-        button_step = platform.request("button", 1)
+        button_step = platform.request("button", 0) # Right
         m.d.comb += self.button_step_watcher.observe_input.eq(button_step)
         m.submodules.button_step_watcher = self.button_step_watcher
+
+        button_ffwd = platform.request("button", 1) #Left
+        m.d.comb += self.button_ffwd_watcher.observe_input.eq(button_ffwd)
+        m.submodules.button_ffwd_watcher = self.button_ffwd_watcher
 
         kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)

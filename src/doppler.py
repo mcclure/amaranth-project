@@ -12,10 +12,10 @@ class DopplerPlatform(LatticeICE40Platform):
     hfosc_div   = 0
     resources   = [
         # PCB button1, button2
-        Resource("button", 0, Pins("2", dir="i"),
-                 Attrs(IO_STANDARD="SB_LVCMOS")),
-        Resource("button", 1, Pins("3", dir="i"),
-                 Attrs(IO_STANDARD="SB_LVCMOS")),
+        Resource("button", 0, Pins("2", dir="i", invert=True),
+                 Attrs(IO_STANDARD="SB_LVCMOS33", PULLUP=1)),
+        Resource("button", 1, Pins("3", dir="i", invert=True),
+                 Attrs(IO_STANDARD="SB_LVCMOS33", PULLUP=1)),
 
         # LED matrix anodes and cathodes
         Resource("aled", 0, Pins("26 27 28 31", dir="o"),
