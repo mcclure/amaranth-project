@@ -12,7 +12,7 @@ class SimPlatform():
 
     def request(self, name, id=None, *_):
         if name=="kled":
-            return SimpleNamespace(o=self.kled[id], oe=am.Signal())
+            return SimpleNamespace(oe=self.kled[id], o=am.Signal())
         if name=="aled":
             return SimpleNamespace(o=self.aled)
         if name=="button" and id==0:
