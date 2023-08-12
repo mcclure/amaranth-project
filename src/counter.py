@@ -1,7 +1,7 @@
 import amaranth as am
 from doppler import DopplerPlatform
 
-SCREEN_TEST = True
+SCREEN_TEST = False
 
 class Counter(am.Elaboratable):
     def __init__(self, n, overflow_at_value=None, single_shot=False, observe_reset_value=None):
@@ -33,7 +33,7 @@ class Counter(am.Elaboratable):
         if should_observe:
             with m.If(observe_condition):
                 m.d.sync += self.count.eq(self._observe_reset_value)
-        with m.If(~observe_condition & single_shot_condition): # FIXME elif would be better
+        with m.If(~observe_condition & single_shot_condition): # FIXME way to use Elif here? (Once Yosys bug is fixed)
             m.d.sync += self.count.eq(self.count + 1)
 
         # Output overflow on cycles where the count is 0
@@ -51,10 +51,12 @@ class Edger(am.Elaboratable):
     def elaborate(self, platform):
         m = am.Module()
         m.d.sync += self.last_value.eq(self.observe_input)
-        m.d.comb += self.fire.eq(self.observe_input and (~self.last_value))
+        m.d.comb += self.fire.eq(self.observe_input & (~self.last_value))
+
+        return m
 
 class Top(am.Elaboratable):
-    def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=8, debug=False):
+    def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=5, ffwd_animate_power=8, debug=False):
         # State
         # button_watcher_power bits of delay
         # next 2 bits: row
@@ -85,7 +87,8 @@ class Top(am.Elaboratable):
         self.may_light_full = am.Signal()
         self.may_light_dim = am.Signal()
         self.may_light_current = am.Signal()
-        self.may_scroll = am.Signal()
+
+        self.may_scroll = am.Signal() # Only used if not SCREEN_TEST 
 
         self._button_watcher_power = button_watcher_power
 
@@ -95,6 +98,11 @@ class Top(am.Elaboratable):
         # Objects
         self.button_ffwd_watcher = self.button_watcher()
         self.button_step_watcher = self.button_watcher()
+
+         # Only used if not SCREEN_TEST 
+        self.button_step_edge = Edger()
+        ffwd_animate_max = (1<<ffwd_animate_power-1)
+        self.button_ffwd_down = Counter(ffwd_animate_power, overflow_at_value=1, observe_reset_value=0)
 
         self._debug = debug
 
@@ -149,10 +157,6 @@ class Top(am.Elaboratable):
             )
         ]
 
-        m.d.comb += self.may_scroll.eq(
-            ~self.button_ffwd_watcher.overflow | ~self.button_step_watcher.overflow
-        )
-
         # LED operation
         # Source: https://github.com/dadamachines/doppler-FPGA-firmware/blob/a3d57bb/doppler_simple_io/doppler_simple_io.v#L153-L168
         # Anode looks like (inverted) column select:
@@ -192,11 +196,23 @@ class Top(am.Elaboratable):
                 kleds[i].oe.eq(counter_match)
 
         if not SCREEN_TEST:
-            with m.If(~self.button_ffwd_watcher.overflow):
+            m.submodules.button_step_edge = self.button_step_edge
+            m.submodules.button_ffwd_down = self.button_ffwd_down
+
+            m.d.comb += [
+                self.button_step_edge.observe_input.eq(~self.button_step_watcher.overflow),
+                self.button_ffwd_down.observe_input.eq(self.button_ffwd_watcher.overflow),
+
+                self.may_scroll.eq(
+                    self.button_step_edge.fire | self.button_ffwd_down.overflow
+                )
+            ]
+
+            # FIXME: Maybe don't update grid except at refresh edge?
+            with m.If(self.may_scroll):
                 m.d.sync += \
                     self.grid[12:16].eq(self.grid[12:16] + 1)
 
-            with m.If(self.may_scroll):
                 m.d.sync += \
                     self.grid[0:12].eq(self.grid[4:16])
         else: # SCREEN_TEST
