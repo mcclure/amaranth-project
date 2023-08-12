@@ -4,7 +4,7 @@ from doppler import DopplerPlatform
 SCREEN_TEST = True
 
 class Counter(am.Elaboratable):
-    def __init__(self, n, overflow_at_value=None, single_shot=False, observe=None, observe_reset_value=0):
+    def __init__(self, n, overflow_at_value=None, single_shot=False, observe_reset_value=None):
         # Store an n-bit register for the count value
         self.count = am.Signal(n)
 
@@ -17,18 +17,22 @@ class Counter(am.Elaboratable):
         self._single_shot = single_shot
 
         # Observe signal going high
-        self.observe = observe
         self._observe_reset_value = observe_reset_value
+        if observe_reset_value is not None:
+            self.observe_input = am.Signal()
 
     def elaborate(self, platform):
         m = am.Module()
         # Count up each clock cycle
 
-        single_shot_condition = self.count > 0 if self._single_shot else am.C(1) # FIXME use overflow_at_value?
-        observe_condition = self.observe if self.observe is not None else am.C(0)
+        should_observe = self._observe_reset_value is not None
 
-        with m.If(observe_condition):
-            m.d.sync += self.count.eq(self._observe_reset_value)
+        single_shot_condition = self.count > 0 if self._single_shot else am.C(1) # FIXME use overflow_at_value?
+        observe_condition = self.observe_input if should_observe else am.C(0)
+
+        if should_observe:
+            with m.If(observe_condition):
+                m.d.sync += self.count.eq(self._observe_reset_value)
         with m.If(~observe_condition & single_shot_condition): # FIXME elif would be better
             m.d.sync += self.count.eq(self.count + 1)
 
@@ -38,16 +42,16 @@ class Counter(am.Elaboratable):
         return m
 
 class Edger(am.Elaboratable):
-    def __init__(self, observe): # FIXME variable for initial fire?
+    def __init__(self): # FIXME variable for initial fire?
         # Will output high when this hits rising edge
-        self.observe = observe
+        self.observe_input = am.Signal()
         self.last_value = am.Signal()
         self.fire = am.Signal()
 
     def elaborate(self, platform):
         m = am.Module()
-        m.d.sync += self.last_value.eq(self.observe)
-        m.d.comb += self.fire.eq(self.observe and (~self.last_value))
+        m.d.sync += self.last_value.eq(self.observe_input)
+        m.d.comb += self.fire.eq(self.observe_input and (~self.last_value))
 
 class Top(am.Elaboratable):
     def __init__(self, led_hold_power=0, led_full_intensity=None, led_dim_intensity=None, button_watcher_power=8, debug=False):
@@ -88,14 +92,16 @@ class Top(am.Elaboratable):
         self.row = am.Signal(2)
         self.col = am.Signal(2)
 
+        # Objects
+        self.button_ffwd_watcher = self.button_watcher()
+        self.button_step_watcher = self.button_watcher()
+
         self._debug = debug
-        if debug:
-            self.debug_button_ffwd_watcher_overflow = am.Signal(1)
 
     # Debounce. .overflow field will be 0 iff button pressed in last 2^8 cycles
-    def button_watcher(self, observe=None):
+    def button_watcher(self):
         return Counter(self._button_watcher_power,
-            overflow_at_value=0, single_shot=True, observe=observe, observe_reset_value=1)
+            overflow_at_value=0, single_shot=True, observe_reset_value=1)
 
     def elaborate(self, platform):
         m = am.Module()
@@ -104,15 +110,12 @@ class Top(am.Elaboratable):
 
         # Interface
         button_ffwd = platform.request("button", 0)
-        button_ffwd_watcher = self.button_watcher(button_ffwd)
-        m.submodules.button_ffwd_watcher = button_ffwd_watcher
+        m.d.comb += self.button_ffwd_watcher.observe_input.eq(button_ffwd)
+        m.submodules.button_ffwd_watcher = self.button_ffwd_watcher
 
         button_step = platform.request("button", 1)
-        button_step_watcher = self.button_watcher(button_step)
-        m.submodules.button_step_watcher = button_step_watcher
-
-        if self._debug:
-            m.d.comb += self.debug_button_ffwd_watcher_overflow.eq(button_ffwd_watcher.overflow)
+        m.d.comb += self.button_step_watcher.observe_input.eq(button_step)
+        m.submodules.button_step_watcher = self.button_step_watcher
 
         kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)
@@ -147,7 +150,7 @@ class Top(am.Elaboratable):
         ]
 
         m.d.comb += self.may_scroll.eq(
-            ~button_ffwd_watcher.overflow | ~button_step_watcher.overflow
+            ~self.button_ffwd_watcher.overflow | ~self.button_step_watcher.overflow
         )
 
         # LED operation
@@ -189,7 +192,7 @@ class Top(am.Elaboratable):
                 kleds[i].oe.eq(counter_match)
 
         if not SCREEN_TEST:
-            with m.If(~button_ffwd_watcher.overflow):
+            with m.If(~self.button_ffwd_watcher.overflow):
                 m.d.sync += \
                     self.grid[12:16].eq(self.grid[12:16] + 1)
 
