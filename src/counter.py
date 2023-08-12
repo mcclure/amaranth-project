@@ -55,7 +55,7 @@ class Top(am.Elaboratable):
             self._led_attenuate_bits = slice(4, 4+attenuate_power)
         self._highlight_bits = slice(4+attenuate_power, 4+attenuate_power+highlight_power) # active 0
 
-        self.grid = am.Signal(16)
+        self.grid = am.Const(0b1011011101111101)
 
         # Helpers
         self.may_light = am.Signal(1)
@@ -112,13 +112,13 @@ class Top(am.Elaboratable):
         col = self.current_led.count[self._kled_bits]
 
         for i in range(4): # Iterate rows
-            counter_match = self.may_light
-            if i != 3: # Highlight final row
-                counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
-            counter_match = counter_match & (row == i)
+            #counter_match = self.may_light
+            #if i != 3: # Highlight final row
+            #    counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
+            counter_match = row == i
 
-            grid_match = am.C(0)
-            for c in range(4): # Iterate cols
+            grid_match = ((col == 0) & self.grid[i*4 + 0])
+            for c in range(1,4): # Iterate cols
                 grid_match = grid_match | ((col == c) & self.grid[i*4 + c])
             counter_match = counter_match & grid_match
 
@@ -130,17 +130,17 @@ class Top(am.Elaboratable):
 
         m.d.comb += [kled.o.eq(1) for kled in kleds]
         for i in range(4): # Iterate columns
-            counter_match = self.may_light
-            counter_match = counter_match & (col == i)
+            counter_match = col == i
 
-            grid_match = am.C(0)
-            for c in range(4): # Iterate rows
+            grid_match = ((row == 0) & self.grid[0*4 + i])
+            for c in range(1,4): # Iterate rows
                 grid_match = grid_match | ((row == c) & self.grid[c*4 + i])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
 
+        """
         with m.If(~button_ffwd_watcher.overflow):
             m.d.sync += \
                 self.grid[12:16].eq(self.grid[12:16] + 1)
@@ -148,6 +148,7 @@ class Top(am.Elaboratable):
         with m.If(self.may_scroll):
             m.d.sync += \
                 self.grid[0:12].eq(self.grid[4:16])
+        """
 
         # This button isn't debounced, so it'll probably skip a whole lot every time you press it.
 #        button_last = am.Signal()

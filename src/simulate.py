@@ -34,5 +34,5 @@ def bench():
 sim = Simulator(am.Fragment.get(dut, platform))
 sim.add_clock(1e-6) # 1 MHz
 sim.add_sync_process(bench)
-with sim.write_vcd("up_counter.vcd", traces=[dut.grid, platform.button0, dut.debug_button_ffwd_watcher_overflow, platform.aled, platform.kled]):
+with sim.write_vcd("up_counter.vcd", traces=[platform.button0, dut.debug_button_ffwd_watcher_overflow, platform.aled, platform.kled]):
     sim.run()
