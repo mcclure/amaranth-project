@@ -55,11 +55,13 @@ class Top(am.Elaboratable):
             self._led_attenuate_bits = slice(4, 4+attenuate_power)
         self._highlight_bits = slice(4+attenuate_power, 4+attenuate_power+highlight_power) # active 0
 
-        self.grid = am.Const(0b1011011101111101)
+        self.grid = am.Const(0b1100001110100101, am.unsigned(16))
 
         # Helpers
         self.may_light = am.Signal(1)
         self.may_scroll = am.Signal(1)
+        self.row = am.Signal(2)
+        self.col = am.Signal(2)
 
         self._button_watcher_power = button_watcher_power
 
@@ -108,18 +110,20 @@ class Top(am.Elaboratable):
         # * 1011 for LEDs 2, 6, 10, 14
         # * 0111 for LEDs 3, 7, 11, 15
 
-        row = self.current_led.count[self._aled_bits]
-        col = self.current_led.count[self._kled_bits]
+        m.d.comb += [
+            self.row.eq(self.current_led.count[self._aled_bits]),
+            self.col.eq(self.current_led.count[self._kled_bits])
+        ]
 
         for i in range(4): # Iterate rows
             #counter_match = self.may_light
             #if i != 3: # Highlight final row
             #    counter_match = counter_match & (self.current_led.count[self._highlight_bits] == 0) # Slowest-changing bit(s)
-            counter_match = row == i
+            counter_match = self.row == i
 
-            grid_match = ((col == 0) & self.grid[i*4 + 0])
+            grid_match = ((self.col == 0) & self.grid[i*4 + 0])
             for c in range(1,4): # Iterate cols
-                grid_match = grid_match | ((col == c) & self.grid[i*4 + c])
+                grid_match = grid_match | ((self.col == c) & self.grid[i*4 + c])
             counter_match = counter_match & grid_match
 
             m.d.comb += \
@@ -130,11 +134,11 @@ class Top(am.Elaboratable):
 
         m.d.comb += [kled.o.eq(1) for kled in kleds]
         for i in range(4): # Iterate columns
-            counter_match = col == i
+            counter_match = self.col == i
 
-            grid_match = ((row == 0) & self.grid[0*4 + i])
+            grid_match = ((self.row == 0) & self.grid[0*4 + i])
             for c in range(1,4): # Iterate rows
-                grid_match = grid_match | ((row == c) & self.grid[c*4 + i])
+                grid_match = grid_match | ((self.row == c) & self.grid[c*4 + i])
             counter_match = counter_match & grid_match
 
             m.d.comb += \

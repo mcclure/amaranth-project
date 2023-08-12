@@ -12,7 +12,7 @@ class SimPlatform():
 
     def request(self, name, id=None, *_):
         if name=="kled":
-            return SimpleNamespace(o=self.kled[id], oe=am.Signal())
+            return SimpleNamespace(oe=self.kled[id], o=am.Signal())
         if name=="aled":
             return SimpleNamespace(o=self.aled)
         if name=="button" and id==0:
@@ -34,5 +34,5 @@ def bench():
 sim = Simulator(am.Fragment.get(dut, platform))
 sim.add_clock(1e-6) # 1 MHz
 sim.add_sync_process(bench)
-with sim.write_vcd("up_counter.vcd", traces=[platform.button0, dut.debug_button_ffwd_watcher_overflow, platform.aled, platform.kled]):
+with sim.write_vcd("up_counter.vcd", traces=[platform.button0, dut.debug_button_ffwd_watcher_overflow, dut.row, dut.col, platform.aled, platform.kled]):
     sim.run()
