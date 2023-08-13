@@ -207,11 +207,36 @@ class Top(am.Elaboratable):
                 )
             ]
 
-            # FIXME: Maybe don't update grid except at refresh edge?
-            with m.If(self.may_scroll):
+            with m.If(self.button_step_edge.fire):
+                for i in range(4):
+                    pre = (i+5)%4
+                    nex = (i+1)%4
+                    at = self.grid[12+i]
+                    cat = am.Cat(am.Cat(self.grid[12+pre], at), self.grid[12+nex])
+                    with m.Switch(cat):
+                        with m.Case(0b000):
+                            m.d.sync += at.eq(0)
+                        with m.Case(0b001):
+                            m.d.sync += at.eq(1)
+                        with m.Case(0b010):
+                            m.d.sync += at.eq(1)
+                        with m.Case(0b011):
+                            m.d.sync += at.eq(1)
+                        with m.Case(0b100):
+                            m.d.sync += at.eq(0)
+                        with m.Case(0b101):
+                            m.d.sync += at.eq(1)
+                        with m.Case(0b110):
+                            m.d.sync += at.eq(1)
+                        with m.Case(0b111):
+                            m.d.sync += at.eq(0)
+
+            with m.If(self.button_ffwd_down.overflow):
                 m.d.sync += \
                     self.grid[12:16].eq(self.grid[12:16] + 1)
 
+            # FIXME: Maybe don't update grid except at refresh edge?
+            with m.If(self.may_scroll):
                 m.d.sync += \
                     self.grid[0:12].eq(self.grid[4:16])
         else: # SCREEN_TEST
