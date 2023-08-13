@@ -209,7 +209,7 @@ class Top(am.Elaboratable):
 
             with m.If(self.button_step_edge.fire):
                 for i in range(4):
-                    pre = (i+5)%4
+                    pre = (i+3)%4
                     nex = (i+1)%4
                     at = self.grid[12+i]
                     cat = am.Cat(am.Cat(self.grid[12+pre], at), self.grid[12+nex])
@@ -223,11 +223,11 @@ class Top(am.Elaboratable):
                         with m.Case(0b011):
                             m.d.sync += at.eq(1)
                         with m.Case(0b100):
-                            m.d.sync += at.eq(0)
+                            m.d.sync += at.eq(1)
                         with m.Case(0b101):
-                            m.d.sync += at.eq(1)
+                            m.d.sync += at.eq(0)
                         with m.Case(0b110):
-                            m.d.sync += at.eq(1)
+                            m.d.sync += at.eq(0)
                         with m.Case(0b111):
                             m.d.sync += at.eq(0)
 
