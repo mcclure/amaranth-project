@@ -22,6 +22,8 @@ class SimPlatform():
             return SimpleNamespace(o=self.aled)
         if name=="button":
             return self.button[id]
+        if name=="mcu":
+            return am.Signal(4)
         return am.Signal(1)
 
 platform = SimPlatform()

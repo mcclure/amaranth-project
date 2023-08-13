@@ -124,6 +124,8 @@ class Top(am.Elaboratable):
         m.d.comb += self.button_ffwd_watcher.observe_input.eq(button_ffwd)
         m.submodules.button_ffwd_watcher = self.button_ffwd_watcher
 
+        mcu_output = platform.request("mcu", 0) # MCU direct connection pins
+
         kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)
 
@@ -193,6 +195,9 @@ class Top(am.Elaboratable):
 
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
+
+        m.d.comb += \
+            mcu_output.eq(self.grid[12:16])
 
         if not SCREEN_TEST:
             m.submodules.button_step_edge = self.button_step_edge

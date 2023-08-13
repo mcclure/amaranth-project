@@ -25,6 +25,12 @@ class DopplerPlatform(LatticeICE40Platform):
         Resource("kled", 2, Pins("44", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
         Resource("kled", 3, Pins("45", dir="oe"), Attrs(IO_STANDARD="SB_LVCMOS")),
 
+        # DO NOT CHECK IN!
+        # Andi custom overide on SPI config pins
+
+        Resource("mcu", 0, Pins("4 6 9 10", dir="o"),
+            Attrs(IO_STANDARD="SB_LVCMOS")),
+
         # SAMD51 SERCOM5
         # CS:   SERCOM 1.3/3.3, Arduino pin 11
         # MISO: SERCOM 5.2/3.2, Arduino pin 12
@@ -32,26 +38,26 @@ class DopplerPlatform(LatticeICE40Platform):
         # CLK:  SERCOM 3.0/5.1, Arduino pin 14
         # Configured for bidirectional IO, use `.oe` subsignal to enable
         # output driver.
-        Resource("spi", 0,
-            Subsignal("cs", Pins("6", dir="io")),
-            Subsignal("miso", Pins("4", dir="io")),
-            Subsignal("mosi", Pins("9", dir="io")),
-            Subsignal("clk", Pins("10", dir="io")),
-            Attrs(IO_STANDARD="SB_LVCMOS"),
-        ),
+#        Resource("spi", 0,
+#            Subsignal("cs", Pins("6", dir="io")),
+#            Subsignal("miso", Pins("4", dir="io")),
+#            Subsignal("mosi", Pins("9", dir="io")),
+#            Subsignal("clk", Pins("10", dir="io")),
+#            Attrs(IO_STANDARD="SB_LVCMOS"),
+#        ),
 
         # Configuration SPI interface
         # SO:  PB02, SERCOM 5.0, Arduino pin 23
         # SCK: PB03, SERCOM 5.1, Arduino pin 21
         # CS:  PB22, SERCOM 1.2/5.2, Arduino pin 24
         # SI: PB23, SERCOM 1.3/5.3, Arduino pin 22
-        Resource("cfg", 1,
-            Subsignal("so", Pins("14", dir="o")),
-            Subsignal("sck", Pins("15", dir="i")),
-            Subsignal("cs", Pins("16", dir="i")),
-            Subsignal("si", Pins("17", dir="i")),
-            Attrs(IO_STANDARD="SB_LVCMOS"),
-        ),
+#        Resource("cfg", 1,
+#            Subsignal("so", Pins("14", dir="o")),
+#            Subsignal("sck", Pins("15", dir="i")),
+#            Subsignal("cs", Pins("16", dir="i")),
+#            Subsignal("si", Pins("17", dir="i")),
+#            Attrs(IO_STANDARD="SB_LVCMOS"),
+#        ),
 
         # Pins breakout downside/upside.
         # Configured for bidirectional IO, use `.oe` subsignal to enable output
