@@ -32,6 +32,13 @@ dut = Top(hold_power, button_watcher_power=4, ffwd_animate_power=5, debug=True)
 def bench():
     for _ in range(64*hold_factor):
         yield
+    # Flutter randomize button
+    for r in range(1):
+        downtime = 64*hold_factor
+        for i in range(downtime):
+            yield platform.button[1].eq(i%2 == 0)
+            yield
+    # Flutter step button
     for r in range(4):
         downtime = ((r+1)*4)
         watchtime = 64*hold_factor
@@ -39,11 +46,6 @@ def bench():
             yield platform.button[0].eq(i%2 == 0)
             yield
         for _ in range(watchtime-downtime):
-            yield
-    for r in range(1):
-        downtime = 64*hold_factor
-        for i in range(downtime):
-            yield platform.button[1].eq(i%2 == 0)
             yield
     for _ in range(128*hold_factor):
         yield

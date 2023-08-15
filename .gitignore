@@ -10,3 +10,6 @@ __pycache__/
 
 # Amaranth
 /build*
+
+# General
+.DS_Store

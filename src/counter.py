@@ -1,8 +1,13 @@
 import amaranth as am
 from doppler import DopplerPlatform
 
+# Set True and grid will show a fixed pattern
 SCREEN_TEST = False
 
+# Upward counter class with configurable optional features:
+#    1. Only iterate when external "observe" signal high
+#    2. Send overflow when value reached (must externally wire to observe_input at elaborate time)
+#    3. Stop after single iteration
 class Counter(am.Elaboratable):
     def __init__(self, n, overflow_at_value=None, single_shot=False, observe_reset_value=None):
         # Store an n-bit register for the count value
@@ -23,7 +28,6 @@ class Counter(am.Elaboratable):
 
     def elaborate(self, platform):
         m = am.Module()
-        # Count up each clock cycle
 
         should_observe = self._observe_reset_value is not None
 
@@ -41,6 +45,7 @@ class Counter(am.Elaboratable):
             m.d.comb += self.overflow.eq(self.count == self._overflow_at_value)
         return m
 
+# Fire is true when observe_input (must externally wire at elaborate time) is high
 class Edger(am.Elaboratable):
     def __init__(self): # FIXME variable for initial fire?
         # Will output high when this hits rising edge
@@ -113,7 +118,7 @@ class Top(am.Elaboratable):
     def elaborate(self, platform):
         m = am.Module()
 
-        m.submodules.current_led = self.current_led
+        mcu_output = platform.request("mcu", 0) # MCU direct connection pins
 
         # Interface
         button_step = platform.request("button", 0) # Right
@@ -124,12 +129,11 @@ class Top(am.Elaboratable):
         m.d.comb += self.button_ffwd_watcher.observe_input.eq(button_ffwd)
         m.submodules.button_ffwd_watcher = self.button_ffwd_watcher
 
-        mcu_output = platform.request("mcu", 0) # MCU direct connection pins
-
+        m.submodules.current_led = self.current_led
         kleds = [platform.request("kled", i) for i in range(4)]
         aled = platform.request("aled", 0)
 
-        # Logic
+        # Logic helpers
         m.d.comb += [
             self.row.eq(self.current_led.count[self._aled_bits]),
             self.col.eq(self.current_led.count[self._kled_bits])
@@ -138,6 +142,7 @@ class Top(am.Elaboratable):
         any_hold = self._led_hold_bits is not None
         any_intensity_full = any_hold and self._led_full_intensity is not None
         any_intensity_dim = any_hold and self._led_dim_intensity is not None
+
         m.d.comb += [
             self.may_light_full.eq(
                 self.current_led.count[self._led_hold_bits] < self._led_full_intensity
@@ -165,6 +170,9 @@ class Top(am.Elaboratable):
         # * 1101 for LEDs 1, 5,  9, 13
         # * 1011 for LEDs 2, 6, 10, 14
         # * 0111 for LEDs 3, 7, 11, 15
+
+        # A row/col combination is left on for 32 cycles before changing,
+        # Although some rows may be on for fewer than 32 of the 32 cycle loop to dim them.
 
         for i in range(4): # Iterate rows
             counter_match = self.may_light_current
@@ -196,6 +204,7 @@ class Top(am.Elaboratable):
             m.d.comb += \
                 kleds[i].oe.eq(counter_match)
 
+        # CA logic
         m.d.comb += \
             mcu_output.eq(self.grid[12:16])
 
@@ -203,6 +212,7 @@ class Top(am.Elaboratable):
             m.submodules.button_step_edge = self.button_step_edge
             m.submodules.button_ffwd_down = self.button_ffwd_down
 
+            # Screen logic helpers
             m.d.comb += [
                 self.button_step_edge.observe_input.eq(~self.button_step_watcher.overflow),
                 self.button_ffwd_down.observe_input.eq(self.button_ffwd_watcher.overflow),
@@ -212,12 +222,17 @@ class Top(am.Elaboratable):
                 )
             ]
 
+            # Apply a CA to top row when this button pressed down
             with m.If(self.button_step_edge.fire):
-                for i in range(4):
+                for i in range(4): # For each col
+                    # Calculate indices
                     pre = (i+3)%4
                     nex = (i+1)%4
+                    # Output signal
                     at = self.grid[12+i]
+                    # Input signal
                     cat = am.Cat(am.Cat(self.grid[12+pre], at), self.grid[12+nex])
+                    # Cellular automaton definition (rule 30)
                     with m.Switch(cat):
                         with m.Case(0b000):
                             m.d.sync += at.eq(0)
@@ -236,23 +251,19 @@ class Top(am.Elaboratable):
                         with m.Case(0b111):
                             m.d.sync += at.eq(0)
 
+            # Integer increment top row every N frames when this button held
             with m.If(self.button_ffwd_down.overflow):
                 m.d.sync += \
                     self.grid[12:16].eq(self.grid[12:16] + 1)
 
-            # FIXME: Maybe don't update grid except at refresh edge?
+            # "Scroll" bottom 12 LEDs when either button held
             with m.If(self.may_scroll):
                 m.d.sync += \
                     self.grid[0:12].eq(self.grid[4:16])
-        else: # SCREEN_TEST
+        # SCREEN_TEST (no CA logic)
+        else:
             m.d.comb += \
                 self.grid.eq(am.C(0b1010010100111100, shape=am.unsigned(16)))
-
-        # This button isn't debounced, so it'll probably skip a whole lot every time you press it.
-#        button_last = am.Signal()
-#        m.d.sync += button_last.eq(button.i)
-#        with m.If(~button.i & button_last):
-#            m.d.sync += selected_led.eq(selected_led + 1)
 
         return m
 
