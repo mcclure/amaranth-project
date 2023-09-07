@@ -1,0 +1,4 @@
+pdm run src/counter.py
+xxd -i build/top.bin > build_top_bin.h
+
+pdm run src/simulate.py
