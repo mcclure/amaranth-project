@@ -1,4 +1,8 @@
-pdm run src/counter.py
-xxd -i build/top.bin > build_top_bin.h
+# First time
+pdm install
 
-pdm run src/simulate.py
+# Build
+pdm run src/core/build/pocket.py
+
+# Simulate
+pdm run src/tests/pocket.py
