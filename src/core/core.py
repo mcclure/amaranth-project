@@ -1,3 +1,5 @@
+# "Entry point"
+
 from amaranth import *
 from amaranth.lib.wiring import Component, In, Out
 

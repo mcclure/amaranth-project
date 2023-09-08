@@ -1,3 +1,5 @@
+# Build files from template. Should either remove or switch to OpenFpgaPlatform
+
 from amaranth import *
 
 from amaranth_boards.icestick import ICEStickPlatform
