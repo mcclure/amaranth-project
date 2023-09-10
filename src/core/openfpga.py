@@ -13,7 +13,7 @@ from amaranth.vendor.intel import *
 __all__ = ["OpenFPGAPlatform"]
 
 class OpenFPGAPlatform(IntelPlatform):
-    device      = "5CEBA4"  # Quartus Lite identifies the physical device as a "5CEBA4F23C8" 
+    device      = "5CEBA4"  # Cyclone V 50k LEs / e50f
     package     = "F23"
     speed       = "C8"
     default_clk = "clk_74a"
@@ -21,7 +21,7 @@ class OpenFPGAPlatform(IntelPlatform):
     resources   = [
         Resource("clk_74a", 0, Pins("PIN_V15", dir="i"), # Notional main clock
                  Clock(74.25e6), Attrs(io_standard="3.3-V LVCMOS")), # -period 13.468 => 74.25 MHz
-        Resource("clk_74b", 1, Pins("H16", dir="i"),     # Non-phase-aligned copy of main clock
+        Resource("clk_74b", 1, Pins("H16", dir="i"),     # Non-phase-aligned copy of main clock, on opposite side of the die
                  Clock(74.25e6), Attrs(io_standard="1.8 V")),
     ]
 
